@@ -37,6 +37,19 @@ class BoardCalibrationActivity : AppCompatActivity() {
         }
         framePreview.setImageBitmap(bitmap)
 
+        // Wait for layout so framePreview.imageMatrix reflects the final fitCenter
+        // scale/translate, then compute exactly where the bitmap is drawn on
+        // screen -- this may be smaller than the full view if the bitmap's aspect
+        // ratio doesn't exactly match the screen's (status/gesture bar insets etc).
+        framePreview.post {
+            val drawable = framePreview.drawable
+            if (drawable != null) {
+                val rect = android.graphics.RectF(0f, 0f, drawable.intrinsicWidth.toFloat(), drawable.intrinsicHeight.toFloat())
+                framePreview.imageMatrix.mapRect(rect)
+                cornerOverlay.setImageDisplayRect(rect)
+            }
+        }
+
         findViewById<Button>(R.id.btnConfirm).setOnClickListener {
             val pts = cornerOverlay.getNormalizedCorners()
             val calibration = BoardCalibration(
