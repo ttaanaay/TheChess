@@ -36,6 +36,11 @@
             android:foregroundServiceType="mediaProjection" />
 
         <service
+            android:name=".capture.CalibrationCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <service
             android:name=".overlay.OverlayService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
