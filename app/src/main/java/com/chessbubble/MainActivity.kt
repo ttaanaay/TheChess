@@ -124,6 +124,10 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "หยุดแล้ว", Toast.LENGTH_SHORT).show()
         }
 
+        findViewById<Button>(R.id.btnDebugFrame).setOnClickListener {
+            startActivity(Intent(this, com.chessbubble.ui.DebugFrameActivity::class.java))
+        }
+
         updateStatus()
     }
 

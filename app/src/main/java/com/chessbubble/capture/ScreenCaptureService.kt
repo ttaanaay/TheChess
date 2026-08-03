@@ -122,6 +122,15 @@ class ScreenCaptureService : Service() {
             val bitmap = imageToBitmap(image)
             image.close()
 
+            // Save a debug view of the last frame with the calibration grid drawn on
+            // top, so calibration accuracy can be visually inspected/screenshotted.
+            runCatching {
+                val debugBmp = BoardRecognizer.drawDebugGrid(bitmap, cal)
+                java.io.FileOutputStream(java.io.File(filesDir, "debug_frame.png")).use {
+                    debugBmp.compress(Bitmap.CompressFormat.PNG, 90, it)
+                }
+            }.onFailure { android.util.Log.e(TAG, "Failed to save debug frame", it) }
+
             scope.launch {
                 try {
                     val placement = BoardRecognizer.recognize(bitmap, cal, tmpl)

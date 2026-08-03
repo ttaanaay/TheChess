@@ -99,4 +99,41 @@ object BoardRecognizer {
         }
         return total
     }
+
+    /**
+     * Draws the calibrated 8x8 grid + corner markers onto a COPY of the frame,
+     * purely for debugging calibration accuracy (not used in the recognition
+     * pipeline itself). Green lines = grid, red dots = the 4 calibrated corners.
+     */
+    fun drawDebugGrid(frame: Bitmap, calibration: BoardCalibration): Bitmap {
+        val out = frame.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = android.graphics.Canvas(out)
+        val linePaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.GREEN
+            strokeWidth = 4f
+            style = android.graphics.Paint.Style.STROKE
+        }
+        val dotPaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.RED
+            style = android.graphics.Paint.Style.FILL
+        }
+
+        for (i in 0..8) {
+            val v = i / 8f
+            val (x1, y1) = bilinearPoint(calibration, 0f, v, out.width, out.height)
+            val (x2, y2) = bilinearPoint(calibration, 1f, v, out.width, out.height)
+            canvas.drawLine(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), linePaint)
+        }
+        for (i in 0..8) {
+            val u = i / 8f
+            val (x1, y1) = bilinearPoint(calibration, u, 0f, out.width, out.height)
+            val (x2, y2) = bilinearPoint(calibration, u, 1f, out.width, out.height)
+            canvas.drawLine(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), linePaint)
+        }
+        for ((u, v) in listOf(0f to 0f, 1f to 0f, 1f to 1f, 0f to 1f)) {
+            val (x, y) = bilinearPoint(calibration, u, v, out.width, out.height)
+            canvas.drawCircle(x.toFloat(), y.toFloat(), 14f, dotPaint)
+        }
+        return out
+    }
 }
