@@ -63,6 +63,13 @@ class ScreenCaptureService : Service() {
         if (resultCode == Activity.RESULT_OK && data != null && !isCapturing) {
             val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             mediaProjection = mgr.getMediaProjection(resultCode, data)
+            // Required since Android 14 (API 34): createVirtualDisplay() throws if no
+            // callback has been registered on the MediaProjection yet.
+            mediaProjection?.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() {
+                    isCapturing = false
+                }
+            }, Handler(Looper.getMainLooper()))
             setupVirtualDisplay()
             isCapturing = true
             scheduleNextCapture()
@@ -96,32 +103,40 @@ class ScreenCaptureService : Service() {
     }
 
     private fun captureOnce() {
-        val reader = imageReader ?: return
-        val cal = calibration ?: return // must calibrate before analysis makes sense
-        val tmpl = templates ?: return  // must have template assets for the current theme
+        try {
+            val reader = imageReader ?: return
+            val cal = calibration ?: return // must calibrate before analysis makes sense
+            val tmpl = templates ?: return  // must have template assets for the current theme
 
-        val image: Image = reader.acquireLatestImage() ?: return
-        val bitmap = imageToBitmap(image)
-        image.close()
+            val image: Image = reader.acquireLatestImage() ?: return
+            val bitmap = imageToBitmap(image)
+            image.close()
 
-        scope.launch {
-            val placement = BoardRecognizer.recognize(bitmap, cal, tmpl)
-            val before = tracker.current
-            val result = tracker.submitRecognizedPlacement(placement)
-            if (result is ResolveResult.Resolved) {
-                val moverWasWhite = before.whiteToMove
-                val bestEvalWhitePerspective = engine.evaluateCp(before.toFen())
-                val afterEvalWhitePerspective = engine.evaluateCp(result.newState.toFen())
+            scope.launch {
+                try {
+                    val placement = BoardRecognizer.recognize(bitmap, cal, tmpl)
+                    val before = tracker.current
+                    val result = tracker.submitRecognizedPlacement(placement)
+                    if (result is ResolveResult.Resolved) {
+                        val moverWasWhite = before.whiteToMove
+                        val bestEvalWhitePerspective = engine.evaluateCp(before.toFen())
+                        val afterEvalWhitePerspective = engine.evaluateCp(result.newState.toFen())
 
-                val moverBest = if (moverWasWhite) bestEvalWhitePerspective else -bestEvalWhitePerspective
-                val moverActual = if (moverWasWhite) afterEvalWhitePerspective else -afterEvalWhitePerspective
-                val cpLoss = (moverBest - moverActual).coerceAtLeast(0)
-                val quality = MoveQuality.fromCentipawnLoss(cpLoss)
+                        val moverBest = if (moverWasWhite) bestEvalWhitePerspective else -bestEvalWhitePerspective
+                        val moverActual = if (moverWasWhite) afterEvalWhitePerspective else -afterEvalWhitePerspective
+                        val cpLoss = (moverBest - moverActual).coerceAtLeast(0)
+                        val quality = MoveQuality.fromCentipawnLoss(cpLoss)
 
-                broadcastMove(moverWasWhite, result.san, quality)
+                        broadcastMove(moverWasWhite, result.san, quality)
+                    }
+                    // ResolveResult.NoMatch -> vision misread a square or missed a move; simply wait
+                    // for the next capture frame rather than guessing.
+                } catch (e: Exception) {
+                    android.util.Log.e("ScreenCaptureService", "Error processing captured frame", e)
+                }
             }
-            // ResolveResult.NoMatch -> vision misread a square or missed a move; simply wait
-            // for the next capture frame rather than guessing.
+        } catch (e: Exception) {
+            android.util.Log.e("ScreenCaptureService", "Error capturing frame", e)
         }
     }
 
