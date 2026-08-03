@@ -1,0 +1,10 @@
+<resources>
+    <color name="excellent">#2ECC71</color>
+    <color name="great">#27AE60</color>
+    <color name="good">#3498DB</color>
+    <color name="inaccuracy">#F1C40F</color>
+    <color name="mistake">#E67E22</color>
+    <color name="blunder">#E74C3C</color>
+    <color name="bubble_bg">#DD1E1E1E</color>
+    <color name="bubble_text">#FFFFFF</color>
+</resources>

@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Chess Bubble Analyzer</string>
+    <string name="notif_capture_channel">Screen Capture</string>
+    <string name="notif_overlay_channel">Move Bubble</string>
+    <string name="notif_capture_title">กำลังวิเคราะห์กระดานหมากรุก</string>
+    <string name="notif_overlay_title">Chess Bubble ทำงานอยู่</string>
+    <string name="btn_calibrate">ตั้งค่าตำแหน่งกระดาน</string>
+    <string name="btn_start">เริ่มวิเคราะห์</string>
+    <string name="btn_stop">หยุด</string>
+    <string name="permission_overlay_needed">ต้องอนุญาต "แสดงทับแอปอื่น" ก่อน</string>
+</resources>

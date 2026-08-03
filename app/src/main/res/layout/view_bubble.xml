@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bubbleRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_bubble"
+    android:padding="10dp"
+    android:elevation="8dp">
+
+    <TextView
+        android:id="@+id/txtSide"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/bubble_text"
+        android:textSize="12sp"
+        android:text="White" />
+
+    <TextView
+        android:id="@+id/txtMove"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/bubble_text"
+        android:textStyle="bold"
+        android:textSize="18sp"
+        android:text="Nf3" />
+
+    <TextView
+        android:id="@+id/txtQuality"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/good"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:text="Good" />
+
+</LinearLayout>
