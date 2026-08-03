@@ -51,8 +51,13 @@ dependencies {
     // Coroutines for async frame processing / engine calls
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    // JSON for potential local logging / export of move history (PGN metadata etc.)
-    implementation("org.json:json:20240303")
+    // NOTE: do NOT add an org.json dependency here -- Android bundles its own
+    // org.json.JSONObject on the device's bootclasspath, and it does not match
+    // the standalone org.json library. The app compiles fine against the
+    // richer standalone API but crashes at runtime with NoSuchMethodError
+    // because the OS's version wins at runtime. Use the platform's org.json
+    // (already available, no dependency needed) and stick to its API surface
+    // (e.g. put(String, Double), not put(String, Float)).
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

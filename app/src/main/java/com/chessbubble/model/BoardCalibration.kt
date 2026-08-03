@@ -58,7 +58,7 @@ data class BoardCalibration(
 }
 
 data class PointF2(val x: Float, val y: Float) {
-    fun toJson(): JSONObject = JSONObject().put("x", x).put("y", y)
+    fun toJson(): JSONObject = JSONObject().put("x", x.toDouble()).put("y", y.toDouble())
     companion object {
         fun fromJson(o: JSONObject) = PointF2(o.getDouble("x").toFloat(), o.getDouble("y").toFloat())
     }

@@ -42,24 +42,18 @@ class BoardCalibrationActivity : AppCompatActivity() {
             val calibration = BoardCalibration(
                 topLeft = pts[0], topRight = pts[1], bottomRight = pts[2], bottomLeft = pts[3]
             )
-            val saveOk = BoardCalibration.save(this, calibration)
-            val verify = BoardCalibration.load(this)
-            Toast.makeText(
-                this,
-                "DEBUG: save=$saveOk verifyLoaded=${verify != null}",
-                Toast.LENGTH_LONG
-            ).show()
-
-            // Delay so the debug toast above is actually visible before we navigate away.
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                startActivity(
-                    Intent(this, com.chessbubble.MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    }
-                )
-                setResult(Activity.RESULT_OK)
-                finish()
-            }, 2000)
+            BoardCalibration.save(this, calibration)
+            Toast.makeText(this, "บันทึกตำแหน่งกระดานแล้ว", Toast.LENGTH_SHORT).show()
+            // This Activity may have been opened from a notification tap (its own
+            // separate task), so explicitly navigate back to MainActivity instead
+            // of relying on the system back stack to land there.
+            startActivity(
+                Intent(this, com.chessbubble.MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                }
+            )
+            setResult(Activity.RESULT_OK)
+            finish()
         }
     }
 
