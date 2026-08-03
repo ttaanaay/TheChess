@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
+        requestIgnoreBatteryOptimizations()
 
         val filter = IntentFilter().apply {
             addAction(CalibrationCaptureService.ACTION_FRAME_READY)
@@ -142,6 +143,17 @@ class MainActivity : AppCompatActivity() {
         statusText.text = buildString {
             append(if (calibrated) "✅ ตั้งค่ากระดานแล้ว\n" else "⛔ ยังไม่ได้ตั้งค่ากระดาน\n")
             append(if (overlayOk) "✅ อนุญาตแสดงทับแอปอื่นแล้ว" else "⛔ ยังไม่ได้อนุญาตแสดงทับแอปอื่น")
+        }
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            runCatching {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                })
+            }
         }
     }
 
