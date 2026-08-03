@@ -51,12 +51,16 @@ class ScreenCaptureService : Service() {
         super.onCreate()
         tracker = GameStateTracker()
         calibration = BoardCalibration.load(this)
-        templates = runCatching { PieceTemplates.loadFromAssets(this, "default") }.getOrNull()
+        templates = runCatching { PieceTemplates.loadFromAssets(this, "default") }
+            .onFailure { android.util.Log.e(TAG, "Failed to load piece templates from assets", it) }
+            .getOrNull()
+        android.util.Log.d(TAG, "onCreate: calibration=${calibration != null} templates=${templates != null}")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED
         val data: Intent? = intent?.getParcelableExtra(EXTRA_DATA)
+        android.util.Log.d(TAG, "onStartCommand: resultCode=$resultCode hasData=${data != null} isCapturing=$isCapturing")
 
         startForegroundWithNotification()
 
@@ -67,11 +71,13 @@ class ScreenCaptureService : Service() {
             // callback has been registered on the MediaProjection yet.
             mediaProjection?.registerCallback(object : MediaProjection.Callback() {
                 override fun onStop() {
+                    android.util.Log.d(TAG, "MediaProjection.Callback.onStop() -- projection was revoked/stopped")
                     isCapturing = false
                 }
             }, Handler(Looper.getMainLooper()))
             setupVirtualDisplay()
             isCapturing = true
+            android.util.Log.d(TAG, "Capture loop starting, interval=${captureIntervalMs}ms")
             scheduleNextCapture()
         }
         return START_STICKY
@@ -104,19 +110,26 @@ class ScreenCaptureService : Service() {
 
     private fun captureOnce() {
         try {
-            val reader = imageReader ?: return
-            val cal = calibration ?: return // must calibrate before analysis makes sense
-            val tmpl = templates ?: return  // must have template assets for the current theme
+            val reader = imageReader
+            if (reader == null) { android.util.Log.d(TAG, "captureOnce: imageReader is null, skipping"); return }
+            val cal = calibration
+            if (cal == null) { android.util.Log.d(TAG, "captureOnce: calibration is null, skipping"); return }
+            val tmpl = templates
+            if (tmpl == null) { android.util.Log.d(TAG, "captureOnce: templates is null (assets not loaded?), skipping"); return }
 
-            val image: Image = reader.acquireLatestImage() ?: return
+            val image: Image? = reader.acquireLatestImage()
+            if (image == null) { android.util.Log.d(TAG, "captureOnce: acquireLatestImage returned null"); return }
             val bitmap = imageToBitmap(image)
             image.close()
 
             scope.launch {
                 try {
                     val placement = BoardRecognizer.recognize(bitmap, cal, tmpl)
+                    val placementFen = com.chessbubble.chess.BoardState(placement).toPlacementFen()
                     val before = tracker.current
                     val result = tracker.submitRecognizedPlacement(placement)
+                    android.util.Log.d(TAG, "recognized=$placementFen previous=${before.toPlacementFen()} result=${result::class.simpleName}")
+
                     if (result is ResolveResult.Resolved) {
                         val moverWasWhite = before.whiteToMove
                         val bestEvalWhitePerspective = engine.evaluateCp(before.toFen())
@@ -127,16 +140,17 @@ class ScreenCaptureService : Service() {
                         val cpLoss = (moverBest - moverActual).coerceAtLeast(0)
                         val quality = MoveQuality.fromCentipawnLoss(cpLoss)
 
+                        android.util.Log.d(TAG, "MOVE DETECTED: san=${result.san} quality=${quality.label}")
                         broadcastMove(moverWasWhite, result.san, quality)
                     }
                     // ResolveResult.NoMatch -> vision misread a square or missed a move; simply wait
                     // for the next capture frame rather than guessing.
                 } catch (e: Exception) {
-                    android.util.Log.e("ScreenCaptureService", "Error processing captured frame", e)
+                    android.util.Log.e(TAG, "Error processing captured frame", e)
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("ScreenCaptureService", "Error capturing frame", e)
+            android.util.Log.e(TAG, "Error capturing frame", e)
         }
     }
 
@@ -200,6 +214,7 @@ class ScreenCaptureService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        private const val TAG = "ScreenCaptureService"
         private const val NOTIF_ID = 43
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
