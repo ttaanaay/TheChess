@@ -203,9 +203,24 @@ class ScreenCaptureService : Service() {
             )
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
+
+        // Tapping the notification jumps straight into DebugFrameActivity, bypassing
+        // MainActivity entirely -- if the user opened MainActivity first, the very
+        // act of switching to it would trigger a new capture of OUR OWN black
+        // screen, overwriting the debug frame right before they get to view it.
+        val debugIntent = Intent(this, com.chessbubble.ui.DebugFrameActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val debugPendingIntent = android.app.PendingIntent.getActivity(
+            this, 0, debugIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle(getString(R.string.notif_capture_title))
+            .setContentText("แตะเพื่อดูภาพ debug ล่าสุด")
             .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setContentIntent(debugPendingIntent)
             .setOngoing(true)
             .build()
         startForeground(NOTIF_ID, notification)
