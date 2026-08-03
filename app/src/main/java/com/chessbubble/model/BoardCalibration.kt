@@ -42,8 +42,8 @@ data class BoardCalibration(
         private const val PREFS = "chess_bubble_prefs"
         private const val KEY = "board_calibration"
 
-        fun save(context: Context, calibration: BoardCalibration) {
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        fun save(context: Context, calibration: BoardCalibration): Boolean {
+            return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putString(KEY, calibration.toJson())
                 .commit() // synchronous on purpose: caller finishes the Activity right after
