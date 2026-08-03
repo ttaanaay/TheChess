@@ -25,11 +25,18 @@ import java.io.FileOutputStream
 
 /**
  * Captures exactly ONE screen frame for the board-calibration preview, then
- * stops itself. Must be a foreground service of type "mediaProjection" --
- * as of Android 14, calling MediaProjection.createVirtualDisplay() without an
- * active foreground service of this type throws a SecurityException and
- * crashes the app. (This is why BoardCalibrationActivity can no longer do the
- * capture directly.)
+ * stops itself.
+ *
+ * IMPORTANT: this is started right after the user grants the MediaProjection
+ * permission from MainActivity. At that exact moment OUR OWN app is still in
+ * the foreground, so we deliberately WAIT (CAPTURE_DELAY_MS) before grabbing
+ * the frame -- MainActivity calls moveTaskToBack() and shows a countdown
+ * toast so the user has time to switch back to their chess app. If we
+ * captured immediately we'd just get a screenshot of our own (blank) UI.
+ *
+ * Must be a foreground service of type "mediaProjection" -- as of Android 14,
+ * calling MediaProjection.createVirtualDisplay() without an active foreground
+ * service of this type throws a SecurityException and crashes the app.
  */
 class CalibrationCaptureService : Service() {
 
@@ -76,6 +83,8 @@ class CalibrationCaptureService : Service() {
             reader.surface, null, null
         )
 
+        // Give the user time to switch back to their chess app first -- see
+        // the class KDoc above for why this delay is essential.
         Handler(Looper.getMainLooper()).postDelayed({
             try {
                 val image: Image? = reader.acquireLatestImage()
@@ -98,7 +107,7 @@ class CalibrationCaptureService : Service() {
             } finally {
                 stopSelf()
             }
-        }, 300)
+        }, CAPTURE_DELAY_MS)
     }
 
     private fun saveToCache(bmp: Bitmap): String {
@@ -140,7 +149,8 @@ class CalibrationCaptureService : Service() {
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         }
         val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle(getString(R.string.notif_capture_title))
+            .setContentTitle("กำลังจะแคปหน้าจอใน ${CAPTURE_DELAY_MS / 1000} วิ...")
+            .setContentText("สลับไปเปิดแอปหมากรุกที่ต้องการตอนนี้")
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setOngoing(true)
             .build()
@@ -151,6 +161,7 @@ class CalibrationCaptureService : Service() {
 
     companion object {
         private const val NOTIF_ID = 44
+        private const val CAPTURE_DELAY_MS = 4000L
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
         const val ACTION_FRAME_READY = "com.chessbubble.action.CALIBRATION_FRAME_READY"
