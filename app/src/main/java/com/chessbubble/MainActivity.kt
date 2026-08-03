@@ -1,8 +1,10 @@
 package com.chessbubble
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -13,6 +15,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.chessbubble.capture.CalibrationCaptureService
 import com.chessbubble.capture.ScreenCaptureService
 import com.chessbubble.model.BoardCalibration
 import com.chessbubble.overlay.OverlayService
@@ -22,11 +25,50 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var statusText: TextView
 
-    private val calibrationLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+    // Fires once CalibrationCaptureService finishes grabbing the one frame we need.
+    private val calibrationFrameReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                CalibrationCaptureService.ACTION_FRAME_READY -> {
+                    val path = intent.getStringExtra(CalibrationCaptureService.EXTRA_FRAME_PATH)
+                    if (path != null) {
+                        calibrationActivityLauncher.launch(
+                            Intent(this@MainActivity, BoardCalibrationActivity::class.java)
+                                .putExtra(BoardCalibrationActivity.EXTRA_FRAME_PATH, path)
+                        )
+                    }
+                }
+                CalibrationCaptureService.ACTION_FRAME_FAILED -> {
+                    Toast.makeText(this@MainActivity, "จับภาพหน้าจอไม่สำเร็จ ลองกด \"ตั้งค่าตำแหน่งกระดาน\" อีกครั้ง", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private val calibrationActivityLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         updateStatus()
     }
 
-    private val projectionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    // Requests the MediaProjection permission used ONLY to grab the one-time
+    // calibration preview frame.
+    private val calibrationProjectionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            CalibrationCaptureService.start(this, result.resultCode, result.data!!)
+            Toast.makeText(
+                this,
+                "สลับไปเปิดแอปหมากรุกที่ต้องการตอนนี้เลย! กำลังจะแคปหน้าจอใน 4 วินาที",
+                Toast.LENGTH_LONG
+            ).show()
+            // Get our own UI out of the way so the chess app becomes visible
+            // again before the delayed capture fires (see CalibrationCaptureService).
+            moveTaskToBack(true)
+        } else {
+            Toast.makeText(this, "ต้องอนุญาตแคปหน้าจอก่อนถึงจะตั้งค่าได้", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Requests the MediaProjection permission used for the actual live analysis session.
+    private val analysisProjectionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             ScreenCaptureService.start(this, result.resultCode, result.data!!)
             OverlayService.start(this)
@@ -40,8 +82,20 @@ class MainActivity : AppCompatActivity() {
 
         statusText = findViewById(R.id.statusText)
 
+        val filter = IntentFilter().apply {
+            addAction(CalibrationCaptureService.ACTION_FRAME_READY)
+            addAction(CalibrationCaptureService.ACTION_FRAME_FAILED)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(calibrationFrameReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(calibrationFrameReceiver, filter)
+        }
+
         findViewById<Button>(R.id.btnCalibrate).setOnClickListener {
-            calibrationLauncher.launch(Intent(this, BoardCalibrationActivity::class.java))
+            val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            calibrationProjectionLauncher.launch(projectionManager.createScreenCaptureIntent())
         }
 
         findViewById<Button>(R.id.btnStart).setOnClickListener {
@@ -54,7 +108,7 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
+            analysisProjectionLauncher.launch(projectionManager.createScreenCaptureIntent())
         }
 
         findViewById<Button>(R.id.btnStop).setOnClickListener {
@@ -69,6 +123,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateStatus()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        runCatching { unregisterReceiver(calibrationFrameReceiver) }
     }
 
     private fun updateStatus() {
