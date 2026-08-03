@@ -56,7 +56,7 @@ class MainActivity : AppCompatActivity() {
             CalibrationCaptureService.start(this, result.resultCode, result.data!!)
             Toast.makeText(
                 this,
-                "สลับไปเปิดแอปหมากรุกที่ต้องการตอนนี้เลย! กำลังจะแคปหน้าจอใน 4 วินาที",
+                "สลับไปเปิดแอปหมากรุกที่ต้องการตอนนี้เลย! จะแคปหน้าจอใน 4 วินาที แล้วเลื่อนแถบแจ้งเตือนลงมาแตะเพื่อกลับมาตั้งค่ากระดาน",
                 Toast.LENGTH_LONG
             ).show()
             // Get our own UI out of the way so the chess app becomes visible
@@ -76,11 +76,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op either way */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         statusText = findViewById(R.id.statusText)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         val filter = IntentFilter().apply {
             addAction(CalibrationCaptureService.ACTION_FRAME_READY)
