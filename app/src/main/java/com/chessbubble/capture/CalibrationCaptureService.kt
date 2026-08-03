@@ -134,6 +134,45 @@ class CalibrationCaptureService : Service() {
             setPackage(packageName)
             putExtra(EXTRA_FRAME_PATH, path)
         })
+        showReadyNotification(path)
+    }
+
+    /**
+     * Android blocks apps from launching an Activity by themselves while in
+     * the background (MIUI enforces this especially strictly), so we can't
+     * just auto-open BoardCalibrationActivity here even though we have the
+     * frame ready. Posting a notification and letting the user tap it is the
+     * one launch path Android always allows.
+     */
+    private fun showReadyNotification(path: String) {
+        val readyChannelId = "calibration_ready_channel"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                readyChannelId, "Calibration Ready", NotificationManager.IMPORTANCE_HIGH
+            )
+            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        }
+
+        val openIntent = Intent(this, com.chessbubble.ui.BoardCalibrationActivity::class.java).apply {
+            putExtra(com.chessbubble.ui.BoardCalibrationActivity.EXTRA_FRAME_PATH, path)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            this, 0, openIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, readyChannelId)
+            .setContentTitle("แคปภาพเสร็จแล้ว")
+            .setContentText("แตะเพื่อตั้งค่าตำแหน่งกระดาน")
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_CALL) // hints heads-up / high-visibility delivery on more OEMs
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(READY_NOTIF_ID, notification)
     }
 
     private fun broadcastFailure() {
@@ -161,6 +200,7 @@ class CalibrationCaptureService : Service() {
 
     companion object {
         private const val NOTIF_ID = 44
+        private const val READY_NOTIF_ID = 45
         private const val CAPTURE_DELAY_MS = 4000L
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
