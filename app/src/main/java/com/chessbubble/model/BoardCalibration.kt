@@ -46,7 +46,7 @@ data class BoardCalibration(
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putString(KEY, calibration.toJson())
-                .apply()
+                .commit() // synchronous on purpose: caller finishes the Activity right after
         }
 
         fun load(context: Context): BoardCalibration? {
