@@ -23,7 +23,7 @@ import com.chessbubble.engine.ChessEngine
 import com.chessbubble.engine.StubEngine
 import com.chessbubble.model.BoardCalibration
 import com.chessbubble.model.MoveQuality
-import com.chessbubble.overlay.OverlayContract
+import com.chessbubble.overlay.OverlayBridge
 import com.chessbubble.vision.BoardRecognizer
 import com.chessbubble.vision.PieceTemplates
 import kotlinx.coroutines.CoroutineScope
@@ -199,14 +199,7 @@ class ScreenCaptureService : Service() {
             MoveQuality.MISTAKE -> 0xFFE67E22.toInt()
             MoveQuality.MISS, MoveQuality.BLUNDER -> 0xFFE74C3C.toInt()
         }
-        val intent = Intent(OverlayContract.ACTION_SHOW_MOVE).apply {
-            setPackage(packageName)
-            putExtra(OverlayContract.EXTRA_SIDE_WHITE, white)
-            putExtra(OverlayContract.EXTRA_SAN, san)
-            putExtra(OverlayContract.EXTRA_QUALITY_LABEL, quality.label)
-            putExtra(OverlayContract.EXTRA_QUALITY_COLOR, color)
-        }
-        sendBroadcast(intent)
+        OverlayBridge.notifyMove(white, san, quality.label, color)
     }
 
     private fun imageToBitmap(image: Image): Bitmap {

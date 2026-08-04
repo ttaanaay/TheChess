@@ -1,10 +1,8 @@
 package com.chessbubble.overlay
 
 import android.app.*
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -21,30 +19,27 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var bubbleView: android.view.View? = null
-
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action != OverlayContract.ACTION_SHOW_MOVE) return
-            val white = intent.getBooleanExtra(OverlayContract.EXTRA_SIDE_WHITE, true)
-            val san = intent.getStringExtra(OverlayContract.EXTRA_SAN) ?: return
-            val quality = intent.getStringExtra(OverlayContract.EXTRA_QUALITY_LABEL) ?: ""
-            val color = intent.getIntExtra(OverlayContract.EXTRA_QUALITY_COLOR, 0xFF3498DB.toInt())
-            android.util.Log.d("OverlayService", "BROADCAST RECEIVED: san=$san")
-            showMove(white, san, quality, color)
-            android.util.Log.d("OverlayService", "BUBBLE UPDATED: san=$san")
-        }
-    }
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        registerReceiver(receiver, IntentFilter(OverlayContract.ACTION_SHOW_MOVE), RECEIVER_NOT_EXPORTED_COMPAT)
+
+        // Direct in-process callback (see OverlayBridge) instead of a system
+        // Intent broadcast -- ScreenCaptureService may call this from a
+        // background thread, so hop to the main thread before touching views.
+        OverlayBridge.listener = { white, san, quality, color ->
+            android.util.Log.d("OverlayService", "BRIDGE CALLBACK: san=$san")
+            mainHandler.post {
+                showMove(white, san, quality, color)
+                android.util.Log.d("OverlayService", "BUBBLE UPDATED: san=$san")
+            }
+        }
+
         startForegroundWithNotification()
         addBubbleView()
     }
 
-    private val RECEIVER_NOT_EXPORTED_COMPAT: Int
-        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Context.RECEIVER_NOT_EXPORTED else 0
 
     private fun startForegroundWithNotification() {
         val channelId = "overlay_channel"
@@ -127,7 +122,7 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        runCatching { unregisterReceiver(receiver) }
+        OverlayBridge.listener = null
         bubbleView?.let { runCatching { windowManager.removeView(it) } }
     }
 
