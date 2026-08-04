@@ -50,6 +50,7 @@ class ScreenCaptureService : Service() {
 
     private var isCapturing = false
     private val captureIntervalMs = 200L
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -78,10 +79,12 @@ class ScreenCaptureService : Service() {
                 override fun onStop() {
                     android.util.Log.d(TAG, "MediaProjection.Callback.onStop() -- projection was revoked/stopped")
                     isCapturing = false
+                    releaseWakeLock()
                 }
             }, Handler(Looper.getMainLooper()))
             setupVirtualDisplay()
             isCapturing = true
+            acquireWakeLock()
             android.util.Log.d(TAG, "Capture loop starting, interval=${captureIntervalMs}ms")
             scheduleNextCapture()
         }
@@ -103,6 +106,24 @@ class ScreenCaptureService : Service() {
             android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             imageReader?.surface, null, null
         )
+    }
+
+    private fun acquireWakeLock() {
+        val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        wakeLock = pm.newWakeLock(
+            android.os.PowerManager.PARTIAL_WAKE_LOCK, "ChessBubble::CaptureWakeLock"
+        ).apply {
+            setReferenceCounted(false)
+            acquire(30 * 60 * 1000L /* 30 min safety timeout, renewed implicitly by re-acquire on restart */)
+        }
+        android.util.Log.d(TAG, "WakeLock acquired")
+    }
+
+    private fun releaseWakeLock() {
+        runCatching {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        }
+        wakeLock = null
     }
 
     private fun scheduleNextCapture() {
@@ -240,6 +261,7 @@ class ScreenCaptureService : Service() {
         mediaProjection?.stop()
         engine.close()
         captureThread.quitSafely()
+        releaseWakeLock()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
