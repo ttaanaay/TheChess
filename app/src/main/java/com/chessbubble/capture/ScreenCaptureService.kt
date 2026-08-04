@@ -150,7 +150,7 @@ class ScreenCaptureService : Service() {
                         val cpLoss = (moverBest - moverActual).coerceAtLeast(0)
                         val quality = MoveQuality.fromCentipawnLoss(cpLoss)
 
-                        android.util.Log.d(TAG, "MOVE DETECTED: san=${result.san} quality=${quality.label}")
+                        android.util.Log.d(TAG, "MOVE DETECTED: san=${result.san} quality=${quality.label} visionErrorSquares=${result.visionErrorSquares}")
                         broadcastMove(moverWasWhite, result.san, quality)
                     }
                     // ResolveResult.NoMatch -> vision misread a square or missed a move; simply wait

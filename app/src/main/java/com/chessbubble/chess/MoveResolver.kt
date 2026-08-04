@@ -1,16 +1,30 @@
 package com.chessbubble.chess
 
 sealed class ResolveResult {
-    data class Resolved(val move: Move, val san: String, val newState: BoardState) : ResolveResult()
-    /** Vision output didn't match any legal move from the previous state (misread square, missed a move, etc). */
+    data class Resolved(val move: Move, val san: String, val newState: BoardState, val visionErrorSquares: Int) : ResolveResult()
+    /** Best candidate still differed too much from what vision saw -- likely no move has happened yet, or recognition failed badly this frame. */
     object NoMatch : ResolveResult()
     /** Board identical to before (no move happened yet, or two frames captured same position). */
     object NoChange : ResolveResult()
-    /** More than one legal move produces the same resulting placement (very rare; e.g. ambiguous promotion misread). */
+    /** Two or more legal moves are roughly equally close to what vision saw; can't tell them apart confidently. */
     data class Ambiguous(val candidates: List<Move>) : ResolveResult()
 }
 
+/**
+ * Vision recognition is never pixel-perfect (see BoardRecognizer) -- individual
+ * squares get misread occasionally even with good calibration/templates. Instead
+ * of requiring an EXACT 64-square match (which breaks on a single misread
+ * square), this resolver picks the legal move whose resulting position is
+ * CLOSEST (fewest differing squares) to what vision reported, as long as it's
+ * close enough and clearly better than the next-best candidate.
+ */
 object MoveResolver {
+
+    // How many misread squares we're willing to tolerate on the winning candidate.
+    private const val MAX_ACCEPTABLE_DISTANCE = 10
+    // The winner must beat the runner-up by at least this many squares, or we
+    // can't confidently tell which move was actually played.
+    private const val MIN_MARGIN_OVER_RUNNER_UP = 2
 
     /**
      * @param previous last confirmed BoardState (with correct side-to-move/rights/ep tracked internally)
@@ -20,19 +34,30 @@ object MoveResolver {
         if (previous.board.contentEquals(recognizedPlacement)) return ResolveResult.NoChange
 
         val legal = MoveGen.legalMoves(previous)
-        val matches = legal.filter { m ->
-            MoveGen.applyMove(previous, m).samePlacementAs(recognizedPlacement)
-        }
+        if (legal.isEmpty()) return ResolveResult.NoMatch
+
+        val scored = legal.map { m ->
+            val resultState = MoveGen.applyMove(previous, m)
+            Triple(m, resultState, hammingDistance(resultState.board, recognizedPlacement))
+        }.sortedBy { it.third }
+
+        val (bestMove, bestState, bestDistance) = scored[0]
+        val runnerUpDistance = scored.getOrNull(1)?.third ?: Int.MAX_VALUE
 
         return when {
-            matches.isEmpty() -> ResolveResult.NoMatch
-            matches.size == 1 -> {
-                val m = matches[0]
-                val san = MoveGen.toSan(previous, m)
-                val newState = MoveGen.applyMove(previous, m)
-                ResolveResult.Resolved(m, san, newState)
+            bestDistance > MAX_ACCEPTABLE_DISTANCE -> ResolveResult.NoMatch
+            (runnerUpDistance - bestDistance) < MIN_MARGIN_OVER_RUNNER_UP ->
+                ResolveResult.Ambiguous(scored.filter { it.third == bestDistance }.map { it.first })
+            else -> {
+                val san = MoveGen.toSan(previous, bestMove)
+                ResolveResult.Resolved(bestMove, san, bestState, bestDistance)
             }
-            else -> ResolveResult.Ambiguous(matches)
         }
+    }
+
+    private fun hammingDistance(a: CharArray, b: CharArray): Int {
+        var d = 0
+        for (i in a.indices) if (a[i] != b[i]) d++
+        return d
     }
 }
