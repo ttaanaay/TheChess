@@ -27,7 +27,7 @@ object BoardRecognizer {
                 val label = classifySquare(cellBitmap, templates)
 
                 val (boardFile, boardRankIdx) = displayPositionToBoardSquare(calibration, displayRow, file)
-                val fenChar = PieceTemplates.LABEL_TO_FEN_CHAR[label] ?: '.'
+                val fenChar = PieceTemplates.fenCharForKey(label)
                 result[squareOf(boardFile, boardRankIdx)] = fenChar
             }
         }
