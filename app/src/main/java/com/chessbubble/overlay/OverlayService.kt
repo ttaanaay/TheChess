@@ -29,7 +29,9 @@ class OverlayService : Service() {
             val san = intent.getStringExtra(OverlayContract.EXTRA_SAN) ?: return
             val quality = intent.getStringExtra(OverlayContract.EXTRA_QUALITY_LABEL) ?: ""
             val color = intent.getIntExtra(OverlayContract.EXTRA_QUALITY_COLOR, 0xFF3498DB.toInt())
+            android.util.Log.d("OverlayService", "BROADCAST RECEIVED: san=$san")
             showMove(white, san, quality, color)
+            android.util.Log.d("OverlayService", "BUBBLE UPDATED: san=$san")
         }
     }
 
