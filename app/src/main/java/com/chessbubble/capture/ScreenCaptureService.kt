@@ -45,7 +45,7 @@ class ScreenCaptureService : Service() {
     private var calibration: BoardCalibration? = null
 
     private var isCapturing = false
-    private val captureIntervalMs = 700L
+    private val captureIntervalMs = 400L
 
     override fun onCreate() {
         super.onCreate()
@@ -123,17 +123,18 @@ class ScreenCaptureService : Service() {
             val bitmap = imageToBitmap(image)
             image.close()
 
-            // Save a debug view of the last frame with the calibration grid drawn on
-            // top, so calibration accuracy can be visually inspected/screenshotted.
-            runCatching {
-                val debugBmp = BoardRecognizer.drawDebugGrid(bitmap, cal)
-                java.io.FileOutputStream(java.io.File(filesDir, "debug_frame.png")).use {
-                    debugBmp.compress(Bitmap.CompressFormat.PNG, 90, it)
-                }
-            }.onFailure { android.util.Log.e(TAG, "Failed to save debug frame", it) }
-
             scope.launch {
                 try {
+                    // Debug grid snapshot is purely diagnostic -- run it in the background
+                    // so it never delays scheduling the next capture (this used to run
+                    // synchronously on the main thread and was adding real per-cycle lag).
+                    runCatching {
+                        val debugBmp = BoardRecognizer.drawDebugGrid(bitmap, cal)
+                        java.io.FileOutputStream(java.io.File(filesDir, "debug_frame.png")).use {
+                            debugBmp.compress(Bitmap.CompressFormat.PNG, 90, it)
+                        }
+                    }.onFailure { android.util.Log.e(TAG, "Failed to save debug frame", it) }
+
                     val placement = BoardRecognizer.recognize(bitmap, cal, tmpl)
                     val placementFen = com.chessbubble.chess.BoardState(placement).toPlacementFen()
                     val before = tracker.current
