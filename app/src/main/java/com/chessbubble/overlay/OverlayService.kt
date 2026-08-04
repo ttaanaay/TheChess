@@ -21,8 +21,6 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var bubbleView: android.view.View? = null
-    private val hideHandler = Handler(Looper.getMainLooper())
-    private var hideRunnable: Runnable? = null
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -120,11 +118,9 @@ class OverlayService : Service() {
             text = quality
             setTextColor(color)
         }
+        // Stays visible permanently (shows the latest move) until the next
+        // update replaces it -- no more auto-hide after a few seconds.
         view.animate().alpha(1f).setDuration(150).start()
-
-        hideRunnable?.let { hideHandler.removeCallbacks(it) }
-        hideRunnable = Runnable { view.animate().alpha(0f).setDuration(400).start() }
-        hideHandler.postDelayed(hideRunnable!!, 4000)
     }
 
     override fun onDestroy() {

@@ -36,7 +36,11 @@ class ScreenCaptureService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
-    private val captureHandler = Handler(Looper.getMainLooper())
+    // Dedicated background thread for the capture loop -- image acquisition +
+    // bitmap conversion used to run on the main looper, which added avoidable
+    // per-cycle latency. Everything capture-related now happens off the main thread.
+    private val captureThread = android.os.HandlerThread("ChessBubbleCapture").apply { start() }
+    private val captureHandler = Handler(captureThread.looper)
     private val scope = CoroutineScope(Dispatchers.Default + Job())
 
     private lateinit var tracker: GameStateTracker
@@ -45,7 +49,7 @@ class ScreenCaptureService : Service() {
     private var calibration: BoardCalibration? = null
 
     private var isCapturing = false
-    private val captureIntervalMs = 400L
+    private val captureIntervalMs = 200L
 
     override fun onCreate() {
         super.onCreate()
@@ -235,6 +239,7 @@ class ScreenCaptureService : Service() {
         imageReader?.close()
         mediaProjection?.stop()
         engine.close()
+        captureThread.quitSafely()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
