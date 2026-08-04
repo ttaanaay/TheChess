@@ -56,7 +56,16 @@ class BoardCalibrationActivity : AppCompatActivity() {
                 topLeft = pts[0], topRight = pts[1], bottomRight = pts[2], bottomLeft = pts[3]
             )
             BoardCalibration.save(this, calibration)
-            Toast.makeText(this, "บันทึกตำแหน่งกระดานแล้ว", Toast.LENGTH_SHORT).show()
+
+            // Also (re)generate the piece templates directly from this frame, assuming
+            // the board is at the standard starting position -- see TemplateGenerator
+            // for why this beats importing template images from outside the app.
+            runCatching {
+                val generated = com.chessbubble.vision.TemplateGenerator.generateFromStartingPosition(bitmap, calibration)
+                com.chessbubble.vision.PieceTemplates.saveGenerated(this, generated)
+            }
+
+            Toast.makeText(this, "บันทึกตำแหน่งกระดาน + สร้าง Template แล้ว", Toast.LENGTH_SHORT).show()
             // This Activity may have been opened from a notification tap (its own
             // separate task), so explicitly navigate back to MainActivity instead
             // of relying on the system back stack to land there.

@@ -22,30 +22,41 @@ object BoardRecognizer {
 
         for (rank in 0 until 8) {
             for (file in 0 until 8) {
-                // (u, v) center of this cell within the calibrated quad, in [0,1]x[0,1].
-                // v=0 is the TOP edge of the quad (topLeft/topRight) as shown on screen.
-                val displayRow = rank // 0 = top row of the quad as captured
-                val u = (file + 0.5f) / 8f
-                val v = (displayRow + 0.5f) / 8f
-
-                val (px, py) = bilinearPoint(calibration, u, v, frame.width, frame.height)
-                val cellBitmap = safeCrop(frame, px, py, cellPixelSize(calibration, frame))
+                val displayRow = rank
+                val cellBitmap = cropCellAtDisplayPosition(frame, calibration, displayRow, file)
                 val label = classifySquare(cellBitmap, templates)
 
-                // Map (displayRow, file) -> actual board square, honoring orientation.
-                // If NOT flipped: displayRow 0 = rank 8 (top of screen), displayRow 7 = rank 1.
-                // If flipped: displayRow 0 = rank 1, displayRow 7 = rank 8, and files mirror too.
-                val (boardFile, boardRankIdx) = if (!calibration.boardFlipped) {
-                    file to (7 - displayRow)
-                } else {
-                    (7 - file) to displayRow
-                }
-
+                val (boardFile, boardRankIdx) = displayPositionToBoardSquare(calibration, displayRow, file)
                 val fenChar = PieceTemplates.LABEL_TO_FEN_CHAR[label] ?: '.'
                 result[squareOf(boardFile, boardRankIdx)] = fenChar
             }
         }
         return result
+    }
+
+    /**
+     * Crops the cell at (displayRow, file) -- displayRow 0 = top row of the
+     * captured frame as calibrated, file 0..7 = left to right as captured.
+     * Shared by recognize() and template generation so both use IDENTICAL
+     * pixel sampling (this consistency is what actually matters, not the
+     * absolute crop quality).
+     */
+    fun cropCellAtDisplayPosition(frame: Bitmap, calibration: BoardCalibration, displayRow: Int, file: Int): Bitmap {
+        val u = (file + 0.5f) / 8f
+        val v = (displayRow + 0.5f) / 8f
+        val (px, py) = bilinearPoint(calibration, u, v, frame.width, frame.height)
+        return safeCrop(frame, px, py, cellPixelSize(calibration, frame))
+    }
+
+    /** Map (displayRow, file) -> actual board (file, rank) honoring calibration orientation. */
+    fun displayPositionToBoardSquare(calibration: BoardCalibration, displayRow: Int, file: Int): Pair<Int, Int> {
+        // If NOT flipped: displayRow 0 = rank 8 (top of screen), displayRow 7 = rank 1.
+        // If flipped: displayRow 0 = rank 1, displayRow 7 = rank 8, and files mirror too.
+        return if (!calibration.boardFlipped) {
+            file to (7 - displayRow)
+        } else {
+            (7 - file) to displayRow
+        }
     }
 
     private fun bilinearPoint(cal: BoardCalibration, u: Float, v: Float, frameW: Int, frameH: Int): Pair<Int, Int> {

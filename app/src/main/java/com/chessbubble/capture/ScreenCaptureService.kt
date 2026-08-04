@@ -51,9 +51,10 @@ class ScreenCaptureService : Service() {
         super.onCreate()
         tracker = GameStateTracker()
         calibration = BoardCalibration.load(this)
-        templates = runCatching { PieceTemplates.loadFromAssets(this, "default") }
-            .onFailure { android.util.Log.e(TAG, "Failed to load piece templates from assets", it) }
-            .getOrNull()
+        templates = PieceTemplates.loadGenerated(this)
+            ?: runCatching { PieceTemplates.loadFromAssets(this, "default") }
+                .onFailure { android.util.Log.e(TAG, "Failed to load piece templates from assets", it) }
+                .getOrNull()
         android.util.Log.d(TAG, "onCreate: calibration=${calibration != null} templates=${templates != null}")
     }
 
