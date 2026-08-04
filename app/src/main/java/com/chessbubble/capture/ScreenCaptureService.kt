@@ -51,6 +51,7 @@ class ScreenCaptureService : Service() {
     private var isCapturing = false
     private val captureIntervalMs = 200L
     private var wakeLock: android.os.PowerManager.WakeLock? = null
+    private var lastDebugFrameSavedAt = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -148,18 +149,26 @@ class ScreenCaptureService : Service() {
             val bitmap = imageToBitmap(image)
             image.close()
 
-            scope.launch {
-                try {
-                    // Debug grid snapshot is purely diagnostic -- run it in the background
-                    // so it never delays scheduling the next capture (this used to run
-                    // synchronously on the main thread and was adding real per-cycle lag).
+            // Debug grid snapshot is purely diagnostic. Launched as its OWN
+            // independent coroutine (not awaited by the recognition path below)
+            // and throttled to ~once/sec, so it never delays move detection --
+            // it used to run sequentially before recognize() every single cycle,
+            // which added real per-frame latency to actual move detection.
+            val now = System.currentTimeMillis()
+            if (now - lastDebugFrameSavedAt > DEBUG_FRAME_MIN_INTERVAL_MS) {
+                lastDebugFrameSavedAt = now
+                scope.launch {
                     runCatching {
                         val debugBmp = BoardRecognizer.drawDebugGrid(bitmap, cal)
                         java.io.FileOutputStream(java.io.File(filesDir, "debug_frame.png")).use {
                             debugBmp.compress(Bitmap.CompressFormat.PNG, 90, it)
                         }
                     }.onFailure { android.util.Log.e(TAG, "Failed to save debug frame", it) }
+                }
+            }
 
+            scope.launch {
+                try {
                     val placement = BoardRecognizer.recognize(bitmap, cal, tmpl)
                     val placementFen = com.chessbubble.chess.BoardState(placement).toPlacementFen()
                     val before = tracker.current
@@ -262,6 +271,7 @@ class ScreenCaptureService : Service() {
     companion object {
         private const val TAG = "ScreenCaptureService"
         private const val NOTIF_ID = 43
+        private const val DEBUG_FRAME_MIN_INTERVAL_MS = 1000L
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
 
