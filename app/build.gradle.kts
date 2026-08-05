@@ -39,6 +39,19 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    // Stockfish is bundled as app/src/main/jniLibs/arm64-v8a/libstockfish.so --
+    // it's a real executable disguised as a "native library" so Android's
+    // installer extracts it to disk with execute permission (the standard
+    // trick for bundling CLI binaries without root). This requires the
+    // library be stored uncompressed in the APK and extracted at install
+    // time rather than loaded straight from the (compressed) APK, which is
+    // what useLegacyPackaging = true forces.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {

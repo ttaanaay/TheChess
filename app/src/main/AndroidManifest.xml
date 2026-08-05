@@ -16,6 +16,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.ChessBubble"
+        android:extractNativeLibs="true"
         android:supportsRtl="true">
 
         <activity

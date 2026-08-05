@@ -20,7 +20,7 @@ import com.chessbubble.R
 import com.chessbubble.chess.GameStateTracker
 import com.chessbubble.chess.ResolveResult
 import com.chessbubble.engine.ChessEngine
-import com.chessbubble.engine.StubEngine
+import com.chessbubble.engine.StockfishEngine
 import com.chessbubble.model.BoardCalibration
 import com.chessbubble.model.MoveQuality
 import com.chessbubble.overlay.OverlayBridge
@@ -44,7 +44,7 @@ class ScreenCaptureService : Service() {
     private val scope = CoroutineScope(Dispatchers.Default + Job())
 
     private lateinit var tracker: GameStateTracker
-    private var engine: ChessEngine = StubEngine() // swap for StockfishJniEngine once wired up
+    private lateinit var engine: ChessEngine
     private var templates: PieceTemplates? = null
     private var calibration: BoardCalibration? = null
 
@@ -56,6 +56,7 @@ class ScreenCaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         tracker = GameStateTracker()
+        engine = StockfishEngine(this)
         calibration = BoardCalibration.load(this)
         templates = PieceTemplates.loadGenerated(this)
             ?: runCatching { PieceTemplates.loadFromAssets(this, "default") }
@@ -177,6 +178,12 @@ class ScreenCaptureService : Service() {
 
                     if (result is ResolveResult.Resolved) {
                         val moverWasWhite = before.whiteToMove
+                        android.util.Log.d(TAG, "MOVE DETECTED: san=${result.san} visionErrorSquares=${result.visionErrorSquares}")
+                        // Show the move immediately -- don't make the person wait on
+                        // Stockfish (a couple hundred ms per side) just to see what was
+                        // played. The quality label/color follows a moment later.
+                        OverlayBridge.notifyMove(moverWasWhite, result.san, "Analyzing...", ANALYZING_COLOR)
+
                         val bestEvalWhitePerspective = engine.evaluateCp(before.toFen())
                         val afterEvalWhitePerspective = engine.evaluateCp(result.newState.toFen())
 
@@ -185,7 +192,7 @@ class ScreenCaptureService : Service() {
                         val cpLoss = (moverBest - moverActual).coerceAtLeast(0)
                         val quality = MoveQuality.fromCentipawnLoss(cpLoss)
 
-                        android.util.Log.d(TAG, "MOVE DETECTED: san=${result.san} quality=${quality.label} visionErrorSquares=${result.visionErrorSquares}")
+                        android.util.Log.d(TAG, "QUALITY READY: san=${result.san} quality=${quality.label}")
                         broadcastMove(moverWasWhite, result.san, quality)
                     }
                     // ResolveResult.NoMatch -> vision misread a square or missed a move; simply wait
@@ -272,6 +279,7 @@ class ScreenCaptureService : Service() {
         private const val TAG = "ScreenCaptureService"
         private const val NOTIF_ID = 43
         private const val DEBUG_FRAME_MIN_INTERVAL_MS = 1000L
+        private const val ANALYZING_COLOR = 0xFF95A5A6.toInt() // neutral grey shown while Stockfish is still thinking
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "data"
 

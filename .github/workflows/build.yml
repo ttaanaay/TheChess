@@ -21,10 +21,26 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # No gradlew wrapper jar is committed to this repo (binary file), so we
+      # install Gradle directly via the official setup-gradle action instead
+      # of relying on ./gradlew. This is fully supported by Gradle for CI use.
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
+
+      # The Stockfish binary is ~114MB, over GitHub's 100MB per-file push
+      # limit, so it's never committed to this repo. Instead it's fetched
+      # fresh from the official Stockfish release on every build and placed
+      # where the Android Gradle Plugin expects native libraries, so it gets
+      # bundled into the APK and extracted with execute permission on install.
+      - name: Download Stockfish (Android arm64)
+        run: |
+          mkdir -p app/src/main/jniLibs/arm64-v8a
+          curl -L -o /tmp/stockfish.tar "https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-android-armv8.tar"
+          tar -xf /tmp/stockfish.tar -C /tmp stockfish/stockfish-android-armv8
+          cp /tmp/stockfish/stockfish-android-armv8 app/src/main/jniLibs/arm64-v8a/libstockfish.so
+          chmod +x app/src/main/jniLibs/arm64-v8a/libstockfish.so
 
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
