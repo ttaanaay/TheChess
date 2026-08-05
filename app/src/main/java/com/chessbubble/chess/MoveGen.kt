@@ -341,4 +341,24 @@ object MoveGen {
         val noMoves = legalMoves(after).isEmpty()
         return san + (if (noMoves) "#" else "+")
     }
+
+    /**
+     * Parses a UCI long-algebraic move string (e.g. "e2e4", "e7e8q" for
+     * promotion, "e1g1" for kingside castling) into the matching legal Move
+     * from position `b`, or null if it isn't legal there (shouldn't normally
+     * happen for a move an engine just suggested from that exact position).
+     */
+    fun moveFromUci(b: BoardState, uci: String): Move? {
+        if (uci.length < 4) return null
+        val from = runCatching { BoardState.squareFromName(uci.substring(0, 2)) }.getOrNull() ?: return null
+        val to = runCatching { BoardState.squareFromName(uci.substring(2, 4)) }.getOrNull() ?: return null
+        val promo = if (uci.length >= 5) uci[4].lowercaseChar() else null
+        return legalMoves(b).firstOrNull { it.from == from && it.to == to && it.promotion == promo }
+    }
+
+    /** Converts a UCI move string to SAN from position `b`, or null if it isn't a legal move there. */
+    fun uciToSan(b: BoardState, uci: String): String? {
+        val move = moveFromUci(b, uci) ?: return null
+        return toSan(b, move)
+    }
 }

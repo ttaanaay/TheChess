@@ -58,11 +58,11 @@ class StockfishEngine(context: Context) : ChessEngine {
         }
     }
 
-    override suspend fun evaluateCp(fen: String, depth: Int, moveTimeMs: Int): Int {
+    override suspend fun analyze(fen: String, depth: Int, moveTimeMs: Int): EngineAnalysis {
         mutex.withLock {
             ensureStarted()
             val proc = process
-            if (proc == null || !ready) return 0 // engine unavailable -- behave like a neutral stub rather than crash
+            if (proc == null || !ready) return EngineAnalysis(0, null) // engine unavailable -- neutral, no crash
 
             return withContext(Dispatchers.IO) {
                 try {
@@ -70,17 +70,24 @@ class StockfishEngine(context: Context) : ChessEngine {
                     send("go movetime $moveTimeMs")
 
                     var lastScoreCp: Int? = null
+                    var bestMoveUci: String? = null
                     readUntil { line ->
                         if (line.startsWith("info") && line.contains(" score ")) {
                             parseScoreCp(line, fen)?.let { lastScoreCp = it }
                         }
-                        line.startsWith("bestmove")
+                        if (line.startsWith("bestmove")) {
+                            val parts = line.trim().split(" ")
+                            bestMoveUci = parts.getOrNull(1)?.takeIf { it != "(none)" }
+                            true
+                        } else {
+                            false
+                        }
                     }
-                    lastScoreCp ?: 0
+                    EngineAnalysis(lastScoreCp ?: 0, bestMoveUci)
                 } catch (e: Exception) {
                     android.util.Log.e(TAG, "Error evaluating position, restarting engine next call", e)
                     ready = false
-                    0
+                    EngineAnalysis(0, null)
                 }
             }
         }

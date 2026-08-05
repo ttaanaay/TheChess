@@ -34,4 +34,24 @@
         android:textSize="14sp"
         android:text="Good" />
 
+    <TextView
+        android:id="@+id/txtBestMove"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#FFE74C3C"
+        android:textSize="12sp"
+        android:visibility="gone"
+        android:text="Best was: Nf3" />
+
+    <TextView
+        android:id="@+id/txtNextMove"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="#FF95A5A6"
+        android:textSize="12sp"
+        android:visibility="gone"
+        android:text="Next: e5" />
+
 </LinearLayout>

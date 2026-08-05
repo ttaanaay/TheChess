@@ -184,16 +184,40 @@ class ScreenCaptureService : Service() {
                         // played. The quality label/color follows a moment later.
                         OverlayBridge.notifyMove(moverWasWhite, result.san, "Analyzing...", ANALYZING_COLOR)
 
-                        val bestEvalWhitePerspective = engine.evaluateCp(before.toFen())
-                        val afterEvalWhitePerspective = engine.evaluateCp(result.newState.toFen())
+                        val beforeAnalysis = engine.analyze(before.toFen())
+                        val afterAnalysis = engine.analyze(result.newState.toFen())
 
-                        val moverBest = if (moverWasWhite) bestEvalWhitePerspective else -bestEvalWhitePerspective
-                        val moverActual = if (moverWasWhite) afterEvalWhitePerspective else -afterEvalWhitePerspective
+                        val moverBest = if (moverWasWhite) beforeAnalysis.scoreCp else -beforeAnalysis.scoreCp
+                        val moverActual = if (moverWasWhite) afterAnalysis.scoreCp else -afterAnalysis.scoreCp
                         val cpLoss = (moverBest - moverActual).coerceAtLeast(0)
                         val quality = MoveQuality.fromCentipawnLoss(cpLoss)
 
-                        android.util.Log.d(TAG, "QUALITY READY: san=${result.san} quality=${quality.label}")
-                        broadcastMove(moverWasWhite, result.san, quality)
+                        // "Best move": what the engine would have played instead, from the
+                        // position BEFORE this move -- only worth showing if it's actually
+                        // different from what was played, and only for a suboptimal move.
+                        val bestMoveSan = beforeAnalysis.bestMoveUci?.let {
+                            com.chessbubble.chess.MoveGen.uciToSan(before, it)
+                        }
+                        val showBestMove = bestMoveSan != null &&
+                            bestMoveSan != result.san &&
+                            quality.ordinal >= MoveQuality.INACCURACY.ordinal
+
+                        // "Next move": the engine's top suggestion for whoever moves now,
+                        // from the resulting position -- always useful, shown regardless of quality.
+                        val nextMoveSan = afterAnalysis.bestMoveUci?.let {
+                            com.chessbubble.chess.MoveGen.uciToSan(result.newState, it)
+                        }
+
+                        android.util.Log.d(
+                            TAG,
+                            "QUALITY READY: san=${result.san} quality=${quality.label} " +
+                                "bestMove=$bestMoveSan (shown=$showBestMove) nextMove=$nextMoveSan"
+                        )
+                        broadcastMove(
+                            moverWasWhite, result.san, quality,
+                            bestMoveSan = if (showBestMove) bestMoveSan else null,
+                            nextMoveSan = nextMoveSan
+                        )
                     }
                     // ResolveResult.NoMatch -> vision misread a square or missed a move; simply wait
                     // for the next capture frame rather than guessing.
@@ -206,7 +230,13 @@ class ScreenCaptureService : Service() {
         }
     }
 
-    private fun broadcastMove(white: Boolean, san: String, quality: MoveQuality) {
+    private fun broadcastMove(
+        white: Boolean,
+        san: String,
+        quality: MoveQuality,
+        bestMoveSan: String?,
+        nextMoveSan: String?
+    ) {
         val color = when (quality) {
             MoveQuality.BEST, MoveQuality.EXCELLENT -> 0xFF2ECC71.toInt()
             MoveQuality.GREAT -> 0xFF27AE60.toInt()
@@ -215,7 +245,7 @@ class ScreenCaptureService : Service() {
             MoveQuality.MISTAKE -> 0xFFE67E22.toInt()
             MoveQuality.MISS, MoveQuality.BLUNDER -> 0xFFE74C3C.toInt()
         }
-        OverlayBridge.notifyMove(white, san, quality.label, color)
+        OverlayBridge.notifyMove(white, san, quality.label, color, bestMoveSan, nextMoveSan)
     }
 
     private fun imageToBitmap(image: Image): Bitmap {

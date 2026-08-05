@@ -28,10 +28,10 @@ class OverlayService : Service() {
         // Direct in-process callback (see OverlayBridge) instead of a system
         // Intent broadcast -- ScreenCaptureService may call this from a
         // background thread, so hop to the main thread before touching views.
-        OverlayBridge.listener = { white, san, quality, color ->
+        OverlayBridge.listener = { white, san, quality, color, bestMoveSan, nextMoveSan ->
             android.util.Log.d("OverlayService", "BRIDGE CALLBACK: san=$san")
             mainHandler.post {
-                showMove(white, san, quality, color)
+                showMove(white, san, quality, color, bestMoveSan, nextMoveSan)
                 android.util.Log.d("OverlayService", "BUBBLE UPDATED: san=$san")
             }
         }
@@ -107,7 +107,14 @@ class OverlayService : Service() {
         }
     }
 
-    private fun showMove(white: Boolean, san: String, quality: String, color: Int) {
+    private fun showMove(
+        white: Boolean,
+        san: String,
+        quality: String,
+        color: Int,
+        bestMoveSan: String?,
+        nextMoveSan: String?
+    ) {
         val view = bubbleView ?: return
         view.findViewById<TextView>(R.id.txtSide).text = if (white) "White" else "Black"
         view.findViewById<TextView>(R.id.txtMove).text = san
@@ -115,6 +122,23 @@ class OverlayService : Service() {
             text = quality
             setTextColor(color)
         }
+
+        val txtBestMove = view.findViewById<TextView>(R.id.txtBestMove)
+        if (bestMoveSan != null) {
+            txtBestMove.text = "Best was: $bestMoveSan"
+            txtBestMove.visibility = android.view.View.VISIBLE
+        } else {
+            txtBestMove.visibility = android.view.View.GONE
+        }
+
+        val txtNextMove = view.findViewById<TextView>(R.id.txtNextMove)
+        if (nextMoveSan != null) {
+            txtNextMove.text = "Next: $nextMoveSan"
+            txtNextMove.visibility = android.view.View.VISIBLE
+        } else {
+            txtNextMove.visibility = android.view.View.GONE
+        }
+
         // Stays visible permanently (shows the latest move) until the next
         // update replaces it -- no more auto-hide after a few seconds.
         view.animate().alpha(1f).setDuration(150).start()
